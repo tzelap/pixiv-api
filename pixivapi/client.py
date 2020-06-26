@@ -1,6 +1,8 @@
 import hashlib
-from json import JSONDecodeError
 from datetime import datetime, timezone
+from json import JSONDecodeError
+
+from requests import RequestException, Session
 
 from pixivapi.common import HEADERS, format_bool, parse_qs, require_auth
 from pixivapi.enums import (
@@ -19,7 +21,6 @@ from pixivapi.models import (
     Novel,
     User,
 )
-from requests import RequestException, Session
 
 AUTH_URL = 'https://oauth.secure.pixiv.net/auth/token'
 BASE_URL = 'https://app-api.pixiv.net'
@@ -47,10 +48,10 @@ class Client:
     """
 
     def __init__(
-        self,
-        language='English',
-        client_id='KzEZED7aC0vird8jWyHM38mXjNTY',
-        client_secret='W9JZoJe00qPvJsiyCGT3CCtC6ZUtdpKpzMbNlUGP',
+            self,
+            language='English',
+            client_id='KzEZED7aC0vird8jWyHM38mXjNTY',
+            client_secret='W9JZoJe00qPvJsiyCGT3CCtC6ZUtdpKpzMbNlUGP',
     ):
         self.language = language
         self.client_id = client_id
@@ -101,10 +102,11 @@ class Client:
         response = self.session.get(
             url=url, headers={'Referer': referer}, stream=True
         )
-        with destination.open('wb') as f:
-            for chunk in response.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
+        if destination.exists() is False:
+            with destination.open('wb') as f:
+                for chunk in response.iter_content(chunk_size=1024):
+                    if chunk:
+                        f.write(chunk)
 
     def login(self, username, password):
         """
@@ -140,9 +142,9 @@ class Client:
     def _make_auth_request(self, data):
         client_time = (
             datetime.utcnow()
-            .replace(microsecond=0)
-            .replace(tzinfo=timezone.utc)
-            .isoformat()
+                .replace(microsecond=0)
+                .replace(tzinfo=timezone.utc)
+                .isoformat()
         )
 
         try:
@@ -173,12 +175,12 @@ class Client:
 
     @require_auth
     def search_illustrations(
-        self,
-        word,
-        search_target=SearchTarget.TAGS_PARTIAL,
-        sort=Sort.DATE_DESC,
-        duration=None,
-        offset=None,
+            self,
+            word,
+            search_target=SearchTarget.TAGS_PARTIAL,
+            sort=Sort.DATE_DESC,
+            duration=None,
+            offset=None,
     ):
         """
         Search the illustrations. A maximum of 30 illustrations are
@@ -253,7 +255,7 @@ class Client:
 
     @require_auth
     def fetch_illustration_comments(
-        self, illustration_id, offset=None, include_total_comments=False
+            self, illustration_id, offset=None, include_total_comments=False
     ):
         """
         Fetch the comments of an illustration. A maximum of 30 comments
@@ -345,7 +347,7 @@ class Client:
 
     @require_auth
     def fetch_illustrations_following(
-        self, visibility=Visibility.PUBLIC, offset=None
+            self, visibility=Visibility.PUBLIC, offset=None
     ):
         """
         Fetch new illustrations from followed artists. A maximum of 30
@@ -386,14 +388,14 @@ class Client:
 
     @require_auth
     def fetch_illustrations_recommended(
-        self,
-        content_type=ContentType.ILLUSTRATION,
-        include_ranking_illustrations=False,
-        max_bookmark_id_for_recommend=None,
-        min_bookmark_id_for_recent_illustrations=None,
-        offset=None,
-        bookmark_illust_ids=None,
-        include_ranking_label=True,
+            self,
+            content_type=ContentType.ILLUSTRATION,
+            include_ranking_illustrations=False,
+            max_bookmark_id_for_recommend=None,
+            min_bookmark_id_for_recent_illustrations=None,
+            offset=None,
+            bookmark_illust_ids=None,
+            include_ranking_label=True,
     ):
         """
         Fetch one's recommended illustrations.
@@ -487,7 +489,7 @@ class Client:
 
     @require_auth
     def fetch_illustrations_ranking(
-        self, mode=RankingMode.DAY, date=None, offset=None
+            self, mode=RankingMode.DAY, date=None, offset=None
     ):
         """
         Fetch the ranking illustrations. A maximum of TODO are returned
@@ -673,7 +675,7 @@ class Client:
 
     @require_auth
     def fetch_user_illustrations(
-        self, user_id, content_type=ContentType.ILLUSTRATION, offset=None
+            self, user_id, content_type=ContentType.ILLUSTRATION, offset=None
     ):
         """
         Fetch the illustrations posted by a user.
@@ -720,11 +722,11 @@ class Client:
 
     @require_auth
     def fetch_user_bookmarks(
-        self,
-        user_id,
-        visibility=Visibility.PUBLIC,
-        max_bookmark_id=None,
-        tag=None,
+            self,
+            user_id,
+            visibility=Visibility.PUBLIC,
+            max_bookmark_id=None,
+            tag=None,
     ):
         """
         Fetch the illustrations bookmarked by a user. A maximum of TODO
@@ -777,8 +779,28 @@ class Client:
         }
 
     @require_auth
+    def fetch_user_bookmark_illustrations(self, user_id, visibility=Visibility.PUBLIC):
+        """
+        Fetch the user's bookmarks illustrations and compiles it in a single list.
+        :param int user_id: The ID of the user.
+        :param Visibility visibility: The visibility of the bookmarks.
+            Applies only to requests for one's own bookmarks. If set to
+            ``Visibility.PRIVATE`` for another user, their public bookmarks
+            will be returned.
+        :return: A list containing all the user's bookmarked illustrations 
+        """
+        bookmarks = self.fetch_user_bookmarks(user_id)
+        illustrations = bookmarks.get('illustrations')
+        _next = bookmarks.get('next')
+        while _next is not None:
+            bookmarks = self.fetch_user_bookmarks(user_id, max_bookmark_id=_next)
+            illustrations = illustrations + bookmarks.get('illustrations')
+            _next = bookmarks.get('next')
+        return illustrations
+
+    @require_auth
     def fetch_user_bookmark_tags(
-        self, user_id, visibility=Visibility.PUBLIC, offset=None
+            self, user_id, visibility=Visibility.PUBLIC, offset=None
     ):
         """
         Fetch the bookmark tags that belong to the user. A maximum of
@@ -832,7 +854,7 @@ class Client:
 
     @require_auth
     def fetch_following(
-        self, user_id, visibility=Visibility.PUBLIC, offset=None
+            self, user_id, visibility=Visibility.PUBLIC, offset=None
     ):
         """
         Fetch the users that a user is following. A maximum of 30
